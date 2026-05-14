@@ -21,9 +21,9 @@ Built with cutting-edge AI engineering practices, NEXUS demonstrates advanced ca
 In an era of information overload, NEXUS AI represents the future of knowledge work — transforming vague research topics into comprehensive, cited, high-quality reports in minutes, with transparency and quality control built in.
 
 ---
-
 ## 🏗️ System Architecture
 
+```mermaid
 flowchart TD
     A[User Input] --> B[Search Intelligence Layer]
     B --> C[Deep Web Reader Layer]
@@ -45,6 +45,7 @@ flowchart TD
         E
         F
     end
+```
 
 ### Core Pipeline Workflow
 
