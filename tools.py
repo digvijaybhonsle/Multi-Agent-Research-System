@@ -12,8 +12,6 @@ from tavily import TavilyClient
 from pypdf import PdfReader
 from bs4 import BeautifulSoup
 from langchain.tools import tool
-from sentence_transformers import SentenceTransformer
-from playwright.sync_api import sync_playwright
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 
@@ -22,12 +20,23 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 # =========================================================
 
 chroma_client = chromadb.PersistentClient(
-    path="./chroma_db"
+    path="/tmp/chroma_db"
 )
 
-embedding_model = SentenceTransformer(
-    "all-MiniLM-L6-v2"
-)
+embedding_model = None
+
+def get_embedding_model():
+    global embedding_model
+
+    if embedding_model is None:
+        from sentence_transformers import SentenceTransformer
+
+        embedding_model = SentenceTransformer(
+            "all-MiniLM-L6-v2"
+        )
+
+    return embedding_model
+
 
 collection = chroma_client.get_or_create_collection(
     name="research_reports"
@@ -164,8 +173,10 @@ async def scrape_urls_async(urls):
             fetch_page(session, url)
             for url in urls
         ]
-
-        results = await asyncio.gather(*tasks)
+        results = await asyncio.gather(
+            *tasks,
+            return_exceptions=True
+        )
 
         return results
 
@@ -219,7 +230,9 @@ def store_document(
         chunks = splitter.split_text(text)
 
         # Generate embeddings
-        embeddings = embedding_model.encode(
+        model = get_embedding_model()
+
+        embeddings = model.encode(
             chunks
         ).tolist()
 
@@ -268,7 +281,9 @@ def retrieve_documents(query: str) -> str:
 
     try:
 
-        query_embedding = embedding_model.encode(
+        model = get_embedding_model()
+
+        query_embedding = model.encode(
             [query]
         ).tolist()
 
@@ -339,61 +354,3 @@ def search_arxiv(query: str) -> str:
     except Exception as e:
 
         return f"Arxiv Search Error: {str(e)}"
-
-
-# =========================================================
-# TOOL 6 — PLAYWRIGHT SCRAPER
-# =========================================================
-
-@tool
-def scrape_dynamic_page(url: str) -> str:
-    """
-    Scrape JavaScript-rendered websites using Playwright.
-    """
-
-    try:
-
-        with sync_playwright() as p:
-
-            browser = p.chromium.launch(
-                headless=True
-            )
-
-            page = browser.new_page()
-
-            page.goto(
-                url,
-                timeout=60000
-            )
-
-            page.wait_for_timeout(3000)
-
-            content = page.content()
-
-            browser.close()
-
-            soup = BeautifulSoup(
-                content,
-                "html.parser"
-            )
-
-            for tag in soup([
-                "script",
-                "style",
-                "nav",
-                "footer",
-                "header",
-                "aside"
-            ]):
-                tag.decompose()
-
-            text = soup.get_text(
-                separator=" ",
-                strip=True
-            )
-
-            return text[:5000]
-
-    except Exception as e:
-
-        return f"Playwright Scraping Error: {str(e)}"

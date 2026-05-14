@@ -13,7 +13,8 @@ from langchain_core.output_parsers import StrOutputParser
 
 llm = ChatMistralAI(
     model="mistral-small-2506",
-    temperature=0.3
+    temperature=0.3,
+    max_tokens=4000
 )
 
 
@@ -26,38 +27,45 @@ writer_prompt = ChatPromptTemplate.from_messages([
     (
         "system",
         """
-You are an expert research writer.
+You are an elite AI research analyst and technical writer.
 
-Write:
-- factual
-- structured
-- professional
-- evidence-based reports
+Your responsibilities:
+- Generate factual and evidence-based reports
+- Maintain professional structure
+- Use only provided context
+- Avoid hallucinations
+- Write in a concise but highly informative style
 
-Do not invent unsupported claims.
-Use only provided research context.
+Rules:
+- Never invent facts
+- Never create fake citations
+- Mention uncertainty if information is insufficient
+- Keep technical explanations accurate
 """
     ),
 
     (
         "human",
         """
-Write a detailed research report.
+Generate a detailed research report.
 
-Topic:
+TOPIC:
 {topic}
 
-Research:
+RESEARCH CONTEXT:
 {research}
 
-Structure:
-- Introduction
-- Key Findings
-- Technical Analysis
-- Conclusion
-- Sources
+Required Structure:
+1. Executive Summary
+2. Introduction
+3. Key Findings
+4. Technical Analysis
+5. Current Challenges
+6. Future Scope
+7. Conclusion
+8. Sources
 
-Be detailed and professional.
+Write professionally and in depth.
 """
     ),
 ])
@@ -78,42 +86,50 @@ critic_prompt = ChatPromptTemplate.from_messages([
     (
         "system",
         """
-You are a senior research reviewer.
+You are a senior AI research reviewer.
 
-Critically evaluate:
-- factual consistency
-- clarity
-- completeness
-- logical flow
-- unsupported claims
+Your job:
+- Evaluate factual consistency
+- Detect hallucinations
+- Analyze logical structure
+- Review clarity and completeness
+- Suggest improvements
+
+Be highly critical and professional.
 """
     ),
 
     (
         "human",
         """
-Review the report below.
+Critically review the following report.
 
-Report:
+REPORT:
 {report}
 
-Respond in format:
+Respond EXACTLY in this structure:
 
-Score: X/10
+# Overall Score
+X/10
 
-Strengths:
-- ...
-- ...
+# Strengths
+- Point 1
+- Point 2
 
-Weaknesses:
-- ...
-- ...
+# Weaknesses
+- Point 1
+- Point 2
 
-Hallucination Risks:
-- ...
+# Hallucination Risks
+- Risk 1
+- Risk 2
 
-Final Verdict:
-...
+# Improvement Suggestions
+- Suggestion 1
+- Suggestion 2
+
+# Final Verdict
+Short professional verdict.
 """
     ),
 ])
