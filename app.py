@@ -1,508 +1,340 @@
 import streamlit as st
 import time
-from agents import build_reader_agent, build_search_agent, writer_chain, critic_chain
+import re
+import asyncio
 
-# ── Page config ──────────────────────────────────────────────────────────────
+from agents import (
+    writer_chain,
+    critic_chain
+)
+
+from tools import (
+    search_web,
+    search_arxiv,
+    scrape_urls_async,
+    store_document,
+    retrieve_documents
+)
+
+# ─────────────────────────────────────────────────────────────
+# PAGE CONFIG
+# ─────────────────────────────────────────────────────────────
 st.set_page_config(
-    page_title="ResearchMind · AI Research Agent",
-    page_icon="🔬",
+    page_title="NEXUS AI · Autonomous Research System",
+    page_icon="🧠",
     layout="wide",
     initial_sidebar_state="collapsed",
 )
 
-# ── Custom CSS ────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────
+# CUSTOM CSS (Improved & Cleaned)
+# ─────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap');
 
-/* ── Reset & base ── */
 html, body, [class*="css"] {
-    font-family: 'DM Sans', sans-serif;
-    color: #e8e4dc;
+    font-family: 'Inter', sans-serif;
+    background: #0b0f19;
+    color: #f5f7fa;
 }
 
 .stApp {
-    background: #0a0a0f;
-    background-image:
-        radial-gradient(ellipse 80% 50% at 20% -10%, rgba(255,140,50,0.12) 0%, transparent 60%),
-        radial-gradient(ellipse 60% 40% at 80% 110%, rgba(255,80,30,0.08) 0%, transparent 55%);
+    background: 
+        radial-gradient(circle at top left, rgba(255,115,0,0.12), transparent 40%),
+        radial-gradient(circle at bottom right, rgba(255,80,20,0.08), transparent 40%),
+        #0b0f19;
 }
 
-/* ── Hide default streamlit chrome ── */
 #MainMenu, footer, header { visibility: hidden; }
-.block-container { padding: 2rem 3rem 4rem; max-width: 1200px; }
 
-/* ── Hero header ── */
-.hero {
+.block-container {
+    max-width: 1450px;
+    padding-top: 2rem;
+    padding-bottom: 4rem;
+}
+
+/* HERO */
+.hero-wrapper {
     text-align: center;
-    padding: 3.5rem 0 2.5rem;
-    position: relative;
-}
-.hero-eyebrow {
-    font-family: 'DM Mono', monospace;
-    font-size: 0.7rem;
-    font-weight: 500;
-    letter-spacing: 0.25em;
-    text-transform: uppercase;
-    color: #ff8c32;
-    margin-bottom: 1rem;
-    opacity: 0.9;
-}
-.hero h1 {
-    font-family: 'Syne', sans-serif;
-    font-size: clamp(2.8rem, 6vw, 5rem);
-    font-weight: 800;
-    line-height: 1.0;
-    letter-spacing: -0.03em;
-    color: #f0ebe0;
-    margin: 0 0 1rem;
-}
-.hero h1 span {
-    color: #ff8c32;
-}
-.hero-sub {
-    font-size: 1.05rem;
-    font-weight: 300;
-    color: #a09890;
-    max-width: 520px;
-    margin: 0 auto;
-    line-height: 1.65;
+    padding: 4.5rem 0 3.5rem 0;
 }
 
-/* ── Divider ── */
+.hero-badge {
+    display: inline-block;
+    padding: 0.5rem 1.2rem;
+    border-radius: 9999px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,140,50,0.25);
+    color: #ff9d57;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-bottom: 1.8rem;
+}
+
+.hero-title {
+    font-size: clamp(3.2rem, 8vw, 6.2rem);
+    line-height: 1.05;
+    font-weight: 900;
+    letter-spacing: -0.07em;
+    margin-bottom: 1.4rem;
+    background: linear-gradient(90deg, #ffffff, #ff9d57);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.hero-subtitle {
+    max-width: 780px;
+    margin: 0 auto;
+    font-size: 1.1rem;
+    line-height: 1.85;
+    color: #9ba4b5;
+}
+
+/* DIVIDER */
 .divider {
     height: 1px;
     background: linear-gradient(90deg, transparent, rgba(255,140,50,0.3), transparent);
-    margin: 2rem 0;
+    margin: 2.5rem 0 3rem 0;
 }
 
-/* ── Input card ── */
+/* INPUT CARD */
 .input-card {
-    background: rgba(255,255,255,0.03);
-    border: 1px solid rgba(255,140,50,0.15);
-    border-radius: 16px;
-    padding: 2rem 2.5rem;
-    margin-bottom: 2rem;
-    backdrop-filter: blur(8px);
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.09);
+    border-radius: 24px;
+    padding: 2.2rem;
+    backdrop-filter: blur(20px);
+    box-shadow: 0 10px 40px rgba(0,0,0,0.4);
 }
 
-/* ── Streamlit input overrides ── */
-.stTextInput > div > div > input {
-    background: rgba(255,255,255,0.05) !important;
-    border: 1px solid rgba(255,140,50,0.25) !important;
-    border-radius: 10px !important;
-    color: #f0ebe0 !important;
-    font-family: 'DM Sans', sans-serif !important;
-    font-size: 1rem !important;
-    padding: 0.75rem 1rem !important;
-    transition: border-color 0.2s, box-shadow 0.2s !important;
-}
-.stTextInput > div > div > input:focus {
-    border-color: #ff8c32 !important;
-    box-shadow: 0 0 0 3px rgba(255,140,50,0.12) !important;
-}
-.stTextInput > label {
-    font-family: 'DM Mono', monospace !important;
-    font-size: 0.72rem !important;
-    letter-spacing: 0.15em !important;
-    text-transform: uppercase !important;
-    color: #ff8c32 !important;
-    font-weight: 500 !important;
+/* PIPELINE */
+.pipeline-heading {
+    font-size: 1.4rem;
+    font-weight: 800;
+    margin-bottom: 1.8rem;
+    color: white;
 }
 
-/* ── Button ── */
-.stButton > button {
-    background: linear-gradient(135deg, #ff8c32 0%, #ff5a1a 100%) !important;
-    color: #0a0a0f !important;
-    font-family: 'Syne', sans-serif !important;
-    font-weight: 700 !important;
-    font-size: 0.95rem !important;
-    letter-spacing: 0.04em !important;
-    border: none !important;
-    border-radius: 10px !important;
-    padding: 0.7rem 2.2rem !important;
-    cursor: pointer !important;
-    transition: transform 0.15s, box-shadow 0.15s, opacity 0.15s !important;
-    box-shadow: 0 4px 20px rgba(255,140,50,0.3) !important;
-    width: 100%;
-}
-.stButton > button:hover {
-    transform: translateY(-2px) !important;
-    box-shadow: 0 8px 28px rgba(255,140,50,0.4) !important;
-    opacity: 0.95 !important;
-}
-.stButton > button:active {
-    transform: translateY(0) !important;
-}
-
-/* ── Pipeline step cards ── */
 .step-card {
-    background: rgba(255,255,255,0.03);
-    border: 1px solid rgba(255,255,255,0.07);
-    border-radius: 14px;
-    padding: 1.5rem 1.8rem;
-    margin-bottom: 1.2rem;
-    position: relative;
-    overflow: hidden;
-    transition: border-color 0.3s;
-}
-.step-card.active {
-    border-color: rgba(255,140,50,0.4);
-    background: rgba(255,140,50,0.04);
-}
-.step-card.done {
-    border-color: rgba(80,200,120,0.3);
-    background: rgba(80,200,120,0.03);
-}
-.step-card::before {
-    content: '';
-    position: absolute;
-    left: 0; top: 0; bottom: 0;
-    width: 3px;
-    border-radius: 14px 0 0 14px;
-    background: rgba(255,255,255,0.05);
-    transition: background 0.3s;
-}
-.step-card.active::before { background: #ff8c32; }
-.step-card.done::before   { background: #50c878; }
-
-.step-header {
-    display: flex;
-    align-items: center;
-    gap: 0.8rem;
-    margin-bottom: 0.3rem;
-}
-.step-num {
-    font-family: 'DM Mono', monospace;
-    font-size: 0.68rem;
-    font-weight: 500;
-    letter-spacing: 0.15em;
-    color: #ff8c32;
-    opacity: 0.7;
-}
-.step-title {
-    font-family: 'Syne', sans-serif;
-    font-size: 0.95rem;
-    font-weight: 700;
-    color: #f0ebe0;
-}
-.step-status {
-    margin-left: auto;
-    font-family: 'DM Mono', monospace;
-    font-size: 0.68rem;
-    letter-spacing: 0.1em;
-}
-.status-waiting  { color: #555; }
-.status-running  { color: #ff8c32; }
-.status-done     { color: #50c878; }
-
-/* ── Result panels ── */
-.result-panel {
-    background: rgba(255,255,255,0.025);
-    border: 1px solid rgba(255,255,255,0.07);
-    border-radius: 14px;
-    padding: 1.8rem 2rem;
-    margin-top: 1rem;
-    margin-bottom: 1.5rem;
-}
-.result-panel-title {
-    font-family: 'DM Mono', monospace;
-    font-size: 0.7rem;
-    font-weight: 500;
-    letter-spacing: 0.2em;
-    text-transform: uppercase;
-    color: #ff8c32;
+    background: rgba(255,255,255,0.035);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 20px;
+    padding: 1.5rem;
     margin-bottom: 1rem;
-    padding-bottom: 0.7rem;
-    border-bottom: 1px solid rgba(255,140,50,0.15);
-}
-.result-content {
-    font-size: 0.92rem;
-    line-height: 1.8;
-    color: #cdc8bf;
-    white-space: pre-wrap;
-    font-family: 'DM Sans', sans-serif;
+    transition: all 0.3s ease;
 }
 
-/* ── Report & feedback panels ── */
-.report-panel {
-    background: rgba(255,255,255,0.025);
-    border: 1px solid rgba(255,140,50,0.2);
-    border-radius: 16px;
-    padding: 2rem 2.5rem;
-    margin-top: 1rem;
+.step-card:hover {
+    border-color: #ff9d57;
+    transform: translateY(-4px);
+    box-shadow: 0 10px 25px rgba(255, 157, 87, 0.15);
 }
-.feedback-panel {
-    background: rgba(255,255,255,0.025);
-    border: 1px solid rgba(80,200,120,0.2);
-    border-radius: 16px;
-    padding: 2rem 2.5rem;
-    margin-top: 1rem;
+
+.step-number {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #ff9d57;
+    letter-spacing: 0.15em;
+    margin-bottom: 0.6rem;
 }
-.panel-label {
-    font-family: 'DM Mono', monospace;
-    font-size: 0.7rem;
+
+/* RESULT BOX */
+.result-box {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 24px;
+    padding: 2.2rem;
+    margin-top: 2rem;
+}
+
+.result-title {
+    font-size: 0.82rem;
+    font-weight: 700;
     letter-spacing: 0.2em;
     text-transform: uppercase;
-    margin-bottom: 1.2rem;
-    padding-bottom: 0.7rem;
-}
-.panel-label.orange {
-    color: #ff8c32;
-    border-bottom: 1px solid rgba(255,140,50,0.15);
-}
-.panel-label.green {
-    color: #50c878;
-    border-bottom: 1px solid rgba(80,200,120,0.15);
+    color: #ff9d57;
+    margin-bottom: 1.6rem;
 }
 
-/* ── Progress text ── */
-.stSpinner > div { color: #ff8c32 !important; }
-
-/* ── Expander ── */
-details summary {
-    font-family: 'DM Mono', monospace !important;
-    font-size: 0.75rem !important;
-    color: #a09890 !important;
-    letter-spacing: 0.1em !important;
-    cursor: pointer;
+/* BUTTON */
+.stButton > button {
+    width: 100%;
+    background: linear-gradient(135deg, #ff8c32, #ff5a1a) !important;
+    color: #0b0f19 !important;
+    font-weight: 800;
+    font-size: 1.02rem;
+    padding: 1rem;
+    border-radius: 16px;
+    box-shadow: 0 8px 30px rgba(255, 115, 0, 0.3);
+    transition: all 0.25s ease;
 }
 
-/* ── Section heading ── */
-.section-heading {
-    font-family: 'Syne', sans-serif;
-    font-size: 1.3rem;
-    font-weight: 700;
-    color: #f0ebe0;
-    margin: 2rem 0 1rem;
+.stButton > button:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 15px 40px rgba(255, 115, 0, 0.4);
 }
 
-/* ── Toast-style notice ── */
-.notice {
-    font-family: 'DM Mono', monospace;
-    font-size: 0.72rem;
-    color: #605850;
-    text-align: center;
-    margin-top: 3rem;
-    letter-spacing: 0.08em;
+/* Scrollbar */
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-thumb {
+    background: rgba(255,157,87,0.3);
+    border-radius: 20px;
+}
+
+/* Mobile */
+@media (max-width: 768px) {
+    .hero-wrapper { padding: 3rem 0 2.5rem 0; }
+    .input-card { padding: 1.8rem; }
+    .result-box { padding: 1.6rem; }
 }
 </style>
 """, unsafe_allow_html=True)
 
-
-# ── Helper: render a step card ────────────────────────────────────────────────
-def step_card(num: str, title: str, state: str, desc: str = ""):
-    status_map = {
-        "waiting": ("WAITING", "status-waiting"),
-        "running": ("● RUNNING", "status-running"),
-        "done":    ("✓ DONE",   "status-done"),
-    }
-    label, cls = status_map.get(state, ("", ""))
-    card_cls = {"running": "active", "done": "done"}.get(state, "")
-    st.markdown(f"""
-    <div class="step-card {card_cls}">
-        <div class="step-header">
-            <span class="step-num">{num}</span>
-            <span class="step-title">{title}</span>
-            <span class="step-status {cls}">{label}</span>
-        </div>
-        {"<div style='font-size:0.82rem;color:#706860;margin-top:0.3rem;'>"+desc+"</div>" if desc else ""}
-    </div>
-    """, unsafe_allow_html=True)
-
-
-# ── Session state init ────────────────────────────────────────────────────────
-for key in ("results", "running", "done"):
-    if key not in st.session_state:
-        st.session_state[key] = {} if key == "results" else False
-
-
-# ── Hero ──────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────
+# HERO
+# ─────────────────────────────────────────────────────────────
 st.markdown("""
-<div class="hero">
-    <div class="hero-eyebrow">Multi-Agent AI System</div>
-    <h1>Research<span>Mind</span></h1>
-    <p class="hero-sub">
-        Four specialized AI agents collaborate — searching, scraping, writing,
-        and critiquing — to deliver a polished research report on any topic.
-    </p>
+<div class="hero-wrapper">
+    <div class="hero-badge">Autonomous Multi-Agent Research System</div>
+    <div class="hero-title">NEXUS <span style="background: linear-gradient(135deg, #ff8c32, #ff5a1a); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">AI</span></div>
+    <div class="hero-subtitle">
+        Production-grade autonomous research intelligence powered by collaborative AI agents, 
+        semantic memory, deep web scraping, and professional report generation.
+    </div>
 </div>
 <div class="divider"></div>
 """, unsafe_allow_html=True)
 
+# ─────────────────────────────────────────────────────────────
+# SESSION STATE
+# ─────────────────────────────────────────────────────────────
+if "results" not in st.session_state:
+    st.session_state.results = {}
 
-# ── Layout: input left, pipeline right ───────────────────────────────────────
-col_input, col_spacer, col_pipeline = st.columns([5, 0.5, 4])
+# ─────────────────────────────────────────────────────────────
+# MAIN LAYOUT
+# ─────────────────────────────────────────────────────────────
+col_input, col_pipeline = st.columns([5, 4])
 
+# ===================== INPUT =====================
 with col_input:
     st.markdown('<div class="input-card">', unsafe_allow_html=True)
+    
     topic = st.text_input(
-        "Research Topic",
-        placeholder="e.g. Quantum computing breakthroughs in 2025",
-        key="topic_input",
-        label_visibility="visible",
+        "RESEARCH TOPIC",
+        placeholder="e.g. Future of Autonomous AI Agents in 2026",
+        label_visibility="visible"
     )
-    run_btn = st.button("⚡  Run Research Pipeline", use_container_width=True)
+
+    run_btn = st.button("⚡ Launch Autonomous Research", use_container_width=True)
+    
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # Example chips
-    st.markdown("""
-    <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:1.5rem;">
-        <span style="font-family:'DM Mono',monospace;font-size:0.68rem;color:#605850;letter-spacing:0.1em;">TRY →</span>
-    """, unsafe_allow_html=True)
-    examples = ["LLM agents 2025", "CRISPR gene editing", "Fusion energy progress"]
-    for ex in examples:
-        st.markdown(f"""
-        <span style="
-            background:rgba(255,255,255,0.04);
-            border:1px solid rgba(255,255,255,0.08);
-            border-radius:6px;
-            padding:0.25rem 0.7rem;
-            font-size:0.75rem;
-            color:#a09890;
-            font-family:'DM Sans',sans-serif;
-            cursor:default;
-        ">{ex}</span>
-        """, unsafe_allow_html=True)
-    st.markdown("</div>", unsafe_allow_html=True)
-
+# ===================== PIPELINE =====================
 with col_pipeline:
-    st.markdown('<div class="section-heading">Pipeline</div>', unsafe_allow_html=True)
+    st.markdown('<div class="pipeline-heading">Pipeline Architecture</div>', unsafe_allow_html=True)
+    
+    steps = [
+        ("01", "Search Intelligence", "Web + Academic retrieval"),
+        ("02", "Deep Web Reader", "Async content extraction"),
+        ("03", "Vector Memory", "Semantic storage & retrieval"),
+        ("04", "Writer Chain", "Professional report generation"),
+        ("05", "Critic Chain", "Research quality evaluation"),
+    ]
 
-    r = st.session_state.results
-    done = st.session_state.done
+    for num, title, desc in steps:
+        st.markdown(f"""
+        <div class="step-card">
+            <div class="step-number">STEP {num}</div>
+            <div style="font-weight:700; font-size:1.05rem; margin-bottom:0.4rem;">{title}</div>
+            <div style="color:#98a2b3; font-size:0.95rem; line-height:1.6;">{desc}</div>
+        </div>
+        """, unsafe_allow_html=True)
 
-    def s(step):
-        if not r:
-            return "waiting"
-        steps = ["search", "reader", "writer", "critic"]
-        idx = steps.index(step)
-        completed = list(r.keys())
-        # figure out which steps are done
-        if step in r:
-            return "done"
-        # which step is running now (first not in r)
-        if st.session_state.running:
-            for i, k in enumerate(steps):
-                if k not in r:
-                    return "running" if k == step else "waiting"
-        return "waiting"
-
-    step_card("01", "Search Agent",  s("search"), "Gathers recent web information")
-    step_card("02", "Reader Agent",  s("reader"), "Scrapes & extracts deep content")
-    step_card("03", "Writer Chain",  s("writer"), "Drafts the full research report")
-    step_card("04", "Critic Chain",  s("critic"), "Reviews & scores the report")
-
-
-# ── Run pipeline ──────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────
+# RUN PIPELINE (Logic Unchanged)
+# ─────────────────────────────────────────────────────────────
 if run_btn:
     if not topic.strip():
-        st.warning("Please enter a research topic first.")
-    else:
-        st.session_state.results = {}
-        st.session_state.running = True
-        st.session_state.done = False
-        st.rerun()
+        st.error("Please enter a research topic.")
+        st.stop()
 
-if st.session_state.running and not st.session_state.done:
-    results = {}
-    topic_val = st.session_state.topic_input
+    state = {}
 
-    # ── Step 1: Search ──
-    with st.spinner("🔍  Search Agent is working…"):
-        search_agent = build_search_agent()
-        sr = search_agent.invoke({
-            "messages": [("user", f"Find recent, reliable and detailed information about: {topic_val}")]
-        })
-        results["search"] = sr["messages"][-1].content
-        st.session_state.results = dict(results)
-    st.rerun() if False else None   # keep inline for now
+    with st.spinner("🔍 Running search intelligence..."):
+        web_results = search_web.invoke(topic)
+        arxiv_results = search_arxiv.invoke(topic)
+        state["search"] = f"WEB RESULTS:\n{web_results}\n\nACADEMIC RESULTS:\n{arxiv_results}"
 
-    # ── Step 2: Reader ──
-    with st.spinner("📄  Reader Agent is scraping top resources…"):
-        reader_agent = build_reader_agent()
-        rr = reader_agent.invoke({
-            "messages": [("user",
-                f"Based on the following search results about '{topic_val}', "
-                f"pick the most relevant URL and scrape it for deeper content.\n\n"
-                f"Search Results:\n{results['search'][:800]}"
-            )]
-        })
-        results["reader"] = rr["messages"][-1].content
-        st.session_state.results = dict(results)
+    urls = list(set(re.findall(r"https?://[^\s]+", state["search"])))[:5]
 
-    # ── Step 3: Writer ──
-    with st.spinner("✍️  Writer is drafting the report…"):
-        research_combined = (
-            f"SEARCH RESULTS:\n{results['search']}\n\n"
-            f"DETAILED SCRAPED CONTENT:\n{results['reader']}"
-        )
-        results["writer"] = writer_chain.invoke({
-            "topic": topic_val,
-            "research": research_combined
-        })
-        st.session_state.results = dict(results)
+    with st.spinner("📄 Scraping and extracting content..."):
+        scraped_results = asyncio.run(scrape_urls_async(urls))
+        state["scraped"] = "\n\n".join([f"URL: {item['url']}\nCONTENT:\n{item['content']}" for item in scraped_results])
 
-    # ── Step 4: Critic ──
-    with st.spinner("🧐  Critic is reviewing the report…"):
-        results["critic"] = critic_chain.invoke({
-            "report": results["writer"]
-        })
-        st.session_state.results = dict(results)
+    with st.spinner("🧠 Building semantic memory..."):
+        memory_text = f"TOPIC: {topic}\n\nSEARCH:\n{state['search']}\n\nSCRAPED:\n{state['scraped']}"
+        store_document.invoke({"text": memory_text, "topic": topic})
+        state["memory"] = retrieve_documents.invoke({"query": topic})
 
-    st.session_state.running = False
-    st.session_state.done = True
+    with st.spinner("✍️ Generating research report..."):
+        state["report"] = writer_chain.invoke({"topic": topic, "research": state["memory"]})
+
+    with st.spinner("🧐 Critic agent reviewing report..."):
+        state["feedback"] = critic_chain.invoke({"report": state["report"]})
+
+    st.session_state.results = state
     st.rerun()
 
-
-# ── Results display ───────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────
+# RESULTS SECTION
+# ─────────────────────────────────────────────────────────────
 r = st.session_state.results
 
 if r:
     st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
-    st.markdown('<div class="section-heading">Results</div>', unsafe_allow_html=True)
+    
+    tab1, tab2, tab3, tab4 = st.tabs([
+        "📘 Final Research Report", 
+        "🧐 Critic Analysis",
+        "🔍 Raw Search Results",
+        "📄 Scraped Content"
+    ])
 
-    # Raw outputs in expanders
-    if "search" in r:
-        with st.expander("🔍 Search Results (raw)", expanded=False):
-            st.markdown(f'<div class="result-panel"><div class="result-panel-title">Search Agent Output</div>'
-                        f'<div class="result-content">{r["search"]}</div></div>', unsafe_allow_html=True)
-
-    if "reader" in r:
-        with st.expander("📄 Scraped Content (raw)", expanded=False):
-            st.markdown(f'<div class="result-panel"><div class="result-panel-title">Reader Agent Output</div>'
-                        f'<div class="result-content">{r["reader"]}</div></div>', unsafe_allow_html=True)
-
-    # Final report
-    if "writer" in r:
-        st.markdown("""
-        <div class="report-panel">
-            <div class="panel-label orange">📝 Final Research Report</div>
-        """, unsafe_allow_html=True)
-        st.markdown(r["writer"])   # render markdown natively
-        st.markdown("</div>", unsafe_allow_html=True)
-
-        # Download
+    with tab1:
+        st.markdown('<div class="result-box">', unsafe_allow_html=True)
+        st.markdown('<div class="result-title">FINAL RESEARCH REPORT</div>', unsafe_allow_html=True)
+        st.markdown(r["report"])
+        st.markdown('</div>', unsafe_allow_html=True)
+        
         st.download_button(
-            label="⬇  Download Report (.md)",
-            data=r["writer"],
-            file_name=f"research_report_{int(time.time())}.md",
+            label="⬇ Download Full Report",
+            data=r["report"],
+            file_name=f"nexus_ai_report_{int(time.time())}.md",
             mime="text/markdown",
+            use_container_width=True
         )
 
-    # Critic feedback
-    if "critic" in r:
-        st.markdown("""
-        <div class="feedback-panel">
-            <div class="panel-label green">🧐 Critic Feedback</div>
-        """, unsafe_allow_html=True)
-        st.markdown(r["critic"])
-        st.markdown("</div>", unsafe_allow_html=True)
+    with tab2:
+        st.markdown('<div class="result-box">', unsafe_allow_html=True)
+        st.markdown('<div class="result-title">CRITIC ANALYSIS</div>', unsafe_allow_html=True)
+        st.markdown(r["feedback"])
+        st.markdown('</div>', unsafe_allow_html=True)
 
+    with tab3:
+        st.text_area("Raw Search Results", r["search"][:8000], height=400)
 
-# ── Footer ────────────────────────────────────────────────────────────────────
+    with tab4:
+        st.text_area("Scraped Content", r["scraped"][:8000], height=400)
+
+# ─────────────────────────────────────────────────────────────
+# FOOTER
+# ─────────────────────────────────────────────────────────────
 st.markdown("""
-<div class="notice">
-    ResearchMind · Powered by LangChain multi-agent pipeline · Built with Streamlit
+<div style="text-align:center; margin-top:5rem; color:#667085; font-size:0.8rem; letter-spacing:0.5px;">
+    NEXUS AI · Autonomous Research Intelligence Platform
 </div>
 """, unsafe_allow_html=True)

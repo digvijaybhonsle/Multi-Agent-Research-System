@@ -1,74 +1,211 @@
-from agents import build_reader_agent , build_search_agent , writer_chain , critic_chain
+from agents import (
+    writer_chain,
+    critic_chain
+)
 
-def run_research_pipeline(topic : str) -> dict:
+from tools import (
+    search_web,
+    search_arxiv,
+    store_document,
+    retrieve_documents,
+    scrape_urls_async
+)
+
+import re
+import asyncio
+
+
+# =========================================================
+# MAIN PIPELINE
+# =========================================================
+
+def run_research_pipeline(topic: str) -> dict:
 
     state = {}
 
-    #search agent working 
-    print("\n"+" ="*50)
-    print("step 1 - search agent is working ...")
-    print("="*50)
+    # =====================================================
+    # STEP 1 — SEARCH AGENT
+    # =====================================================
 
-    search_agent = build_search_agent()
-    search_result = search_agent.invoke({
-        "messages" : [("user", f"Find recent, reliable and detailed information about: {topic}")]
-    })
-    state["search_results"] = search_result['messages'][-1].content
+    print("\n" + "=" * 60)
+    print("STEP 1 — SEARCH AGENT IS WORKING...")
+    print("=" * 60)
 
-    print("\n search result ",state['search_results'])
+    web_results = search_web.invoke(topic)
 
-    #step 2 - reader agent 
-    print("\n"+" ="*50)
-    print("step 2 - Reader agent is scraping top resources ...")
-    print("="*50)
+    arxiv_results = search_arxiv.invoke(topic)
 
-    reader_agent = build_reader_agent()
-    reader_result = reader_agent.invoke({
-        "messages": [("user",
-            f"Based on the following search results about '{topic}', "
-            f"pick the most relevant URL and scrape it for deeper content.\n\n"
-            f"Search Results:\n{state['search_results'][:800]}"
-        )]
-    })
+    combined_search = f"""
 
-    state['scraped_content'] = reader_result['messages'][-1].content
+    WEB RESULTS:
+    {web_results}
 
-    print("\nscraped content: \n", state['scraped_content'])
+    ACADEMIC RESULTS:
+    {arxiv_results}
+    """
 
-    #step 3 - writer chain 
+    state["search_results"] = combined_search
 
-    print("\n"+" ="*50)
-    print("step 3 - Writer is drafting the report ...")
-    print("="*50)
+    print("\nSEARCH RESULTS:\n")
+    print(state["search_results"][:2000])
 
-    research_combined = (
-        f"SEARCH RESULTS : \n {state['search_results']} \n\n"
-        f"DETAILED SCRAPED CONTENT : \n {state['scraped_content']}"
+
+    # =====================================================
+    # STEP 2 — EXTRACT URLS
+    # =====================================================
+
+    print("\n" + "=" * 60)
+    print("STEP 2 — EXTRACTING URLS...")
+    print("=" * 60)
+
+    urls = re.findall(
+        r"https?://[^\s]+",
+        state["search_results"]
     )
 
-    state["report"] = writer_chain.invoke({
-        "topic" : topic,
-        "research" : research_combined
+    # Remove duplicates
+    urls = list(set(urls))
+
+    # Limit URLs for stability
+    urls = urls[:5]
+
+    state["urls"] = urls
+
+    print("\nEXTRACTED URLS:\n")
+
+    for url in urls:
+        print(url)
+
+
+    # =====================================================
+    # STEP 3 — SCRAPE URLS ASYNCHRONOUSLY
+    # =====================================================
+
+    print("\n" + "=" * 60)
+    print("STEP 3 — SCRAPING URLS...")
+    print("=" * 60)
+
+    scraped_results = asyncio.run(
+        scrape_urls_async(urls)
+    )
+
+    formatted_scraped_content = []
+
+    for item in scraped_results:
+
+        formatted_scraped_content.append(
+            f"URL: {item['url']}\n\n"
+            f"CONTENT:\n{item['content']}\n"
+        )
+
+    state["scraped_content"] = (
+        "\n\n====================\n\n"
+        .join(formatted_scraped_content)
+    )
+
+    print("\nSCRAPED CONTENT:\n")
+    print(state["scraped_content"][:3000])
+
+
+    # =====================================================
+    # STEP 4 — STORE IN CHROMADB
+    # =====================================================
+
+    print("\n" + "=" * 60)
+    print("STEP 4 — STORING RESEARCH IN CHROMADB...")
+    print("=" * 60)
+
+    combined_memory = f"""
+
+    TOPIC:
+    {topic}
+
+    SEARCH RESULTS:
+    {state['search_results']}
+
+    SCRAPED CONTENT:
+    {state['scraped_content']}
+    """
+
+    memory_result = store_document.invoke({
+        "text": combined_memory,
+        "topic": topic
     })
 
-    print("\n Final Report\n",state['report'])
+    state["memory_status"] = memory_result
 
-    #critic report 
+    print("\nMEMORY STATUS:\n")
+    print(memory_result)
 
-    print("\n"+" ="*50)
-    print("step 4 - critic is reviewing the report ")
-    print("="*50)
+
+    # =====================================================
+    # STEP 5 — RETRIEVE RELEVANT CONTEXT
+    # =====================================================
+
+    print("\n" + "=" * 60)
+    print("STEP 5 — RETRIEVING RELEVANT CONTEXT...")
+    print("=" * 60)
+
+    retrieved_context = retrieve_documents.invoke({
+        "query": topic
+    })
+
+    state["retrieved_context"] = retrieved_context
+
+    print("\nRETRIEVED CONTEXT:\n")
+    print(retrieved_context[:3000])
+
+
+    # =====================================================
+    # STEP 6 — WRITER CHAIN
+    # =====================================================
+
+    print("\n" + "=" * 60)
+    print("STEP 6 — WRITER CHAIN IS GENERATING REPORT...")
+    print("=" * 60)
+
+    state["report"] = writer_chain.invoke({
+        "topic": topic,
+        "research": state["retrieved_context"]
+    })
+
+    print("\nFINAL REPORT:\n")
+    print(state["report"][:4000])
+
+
+    # =====================================================
+    # STEP 7 — CRITIC CHAIN
+    # =====================================================
+
+    print("\n" + "=" * 60)
+    print("STEP 7 — CRITIC CHAIN IS REVIEWING REPORT...")
+    print("=" * 60)
 
     state["feedback"] = critic_chain.invoke({
-        "report":state['report']
+        "report": state["report"]
     })
 
-    print("\n critic report \n", state['feedback'])
+    print("\nCRITIC FEEDBACK:\n")
+    print(state["feedback"])
+
+
+    # =====================================================
+    # FINAL OUTPUT
+    # =====================================================
 
     return state
 
 
+# =========================================================
+# MAIN
+# =========================================================
 
 if __name__ == "__main__":
-    topic = input("\n Enter a research topic : ")
-    run_research_pipeline(topic)
+
+    topic = input(
+        "\nEnter a research topic: "
+    )
+
+    final_state = run_research_pipeline(
+        topic
+    )

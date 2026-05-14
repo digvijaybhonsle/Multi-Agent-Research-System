@@ -1,62 +1,103 @@
-from langchain.agents import create_agent
-from langchain_mistralai import ChatMistralAI
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.output_parsers import StrOutputParser
-from tools import search_web, scrape_url
 from dotenv import load_dotenv
-
 load_dotenv()
 
-llm = ChatMistralAI(model="mistral-small-2506")
+from langchain_mistralai import ChatMistralAI
 
-#1st agent 
-def build_search_agent():
-    return create_agent(
-        model = llm,
-        tools= [search_web]
-    )
-
-#2nd agent 
-
-def build_reader_agent():
-    return create_agent(
-        model = llm,
-        tools = [scrape_url]
-    )
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.output_parsers import StrOutputParser
 
 
-#writer chain 
+# =========================================================
+# LLM
+# =========================================================
+
+llm = ChatMistralAI(
+    model="mistral-small-2506",
+    temperature=0.3
+)
+
+
+# =========================================================
+# WRITER CHAIN
+# =========================================================
 
 writer_prompt = ChatPromptTemplate.from_messages([
-    ("system", "You are an expert research writer. Write clear, structured and insightful reports."),
-    ("human", """Write a detailed research report on the topic below.
 
-Topic: {topic}
+    (
+        "system",
+        """
+You are an expert research writer.
 
-Research Gathered:
+Write:
+- factual
+- structured
+- professional
+- evidence-based reports
+
+Do not invent unsupported claims.
+Use only provided research context.
+"""
+    ),
+
+    (
+        "human",
+        """
+Write a detailed research report.
+
+Topic:
+{topic}
+
+Research:
 {research}
 
-Structure the report as:
+Structure:
 - Introduction
-- Key Findings (minimum 3 well-explained points)
+- Key Findings
+- Technical Analysis
 - Conclusion
-- Sources (list all URLs found in the research)
+- Sources
 
-Be detailed, factual and professional."""),
+Be detailed and professional.
+"""
+    ),
 ])
 
-writer_chain = writer_prompt | llm | StrOutputParser()
+writer_chain = (
+    writer_prompt
+    | llm
+    | StrOutputParser()
+)
 
-#critic_chain 
+
+# =========================================================
+# CRITIC CHAIN
+# =========================================================
 
 critic_prompt = ChatPromptTemplate.from_messages([
-     ("system", "You are a sharp and constructive research critic. Be honest and specific."),
-    ("human", """Review the research report below and evaluate it strictly.
+
+    (
+        "system",
+        """
+You are a senior research reviewer.
+
+Critically evaluate:
+- factual consistency
+- clarity
+- completeness
+- logical flow
+- unsupported claims
+"""
+    ),
+
+    (
+        "human",
+        """
+Review the report below.
 
 Report:
 {report}
 
-Respond in this exact format:
+Respond in format:
 
 Score: X/10
 
@@ -64,12 +105,21 @@ Strengths:
 - ...
 - ...
 
-Areas to Improve:
+Weaknesses:
 - ...
 - ...
 
-One line verdict:
-..."""),
+Hallucination Risks:
+- ...
+
+Final Verdict:
+...
+"""
+    ),
 ])
 
-critic_chain = critic_prompt | llm | StrOutputParser()
+critic_chain = (
+    critic_prompt
+    | llm
+    | StrOutputParser()
+)
