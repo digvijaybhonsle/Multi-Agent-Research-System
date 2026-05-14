@@ -24,7 +24,6 @@ In an era of information overload, NEXUS AI represents the future of knowledge w
 
 ## 🏗️ System Architecture
 
-```mermaid
 flowchart TD
     A[User Input] --> B[Search Intelligence Layer]
     B --> C[Deep Web Reader Layer]
@@ -108,10 +107,15 @@ flowchart TD
 
 ```bash
 nexus-ai/
-├── agents.py
-├── tools.py
+├── agents/
+│   ├── writer_chain.py
+│   └── critic_chain.py
+├── tools/
+│   ├── search.py
+│   ├── scraper.py
+│   └── memory.py
 ├── app.py                      # Main Streamlit UI
-├── pipeline.py                 # Main pipeline
+├── pipeline.py                 # Research pipeline logic
 ├── requirements.txt
 ├── .env.example
 └── README.md
@@ -171,7 +175,6 @@ The application will be available at `http://localhost:8501`
 ![Hero Section](image-1.png)
 ![Research Report](image.png)
 
-*(Replace with actual screenshots)*
 
 ---
 
