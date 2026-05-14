@@ -108,13 +108,8 @@ flowchart TD
 
 ```bash
 nexus-ai/
-├── agents/
-│   ├── writer_chain.py
-│   └── critic_chain.py
-├── tools/
-│   ├── search.py
-│   ├── scraper.py
-│   └── memory.py
+├── agents.py
+├── tools.py                    # All tools used
 ├── app.py                      # Main Streamlit UI
 ├── pipeline.py                 # Research pipeline logic
 ├── requirements.txt
@@ -259,7 +254,7 @@ This project is licensed under the **MIT License**.
 
 ## 👨‍💼 Author
 
-**Digvijay**  
+**Digvijay Bhonsle**  
 *AI Engineer | Building autonomous intelligence systems*
 
 ---
