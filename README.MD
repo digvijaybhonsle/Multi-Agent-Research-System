@@ -5,7 +5,6 @@
 ![LangChain](https://img.shields.io/badge/LangChain-Framework-1C3C5E)
 ![Streamlit](https://img.shields.io/badge/Streamlit-Frontend-FF4B4B)
 ![ChromaDB](https://img.shields.io/badge/ChromaDB-Vector%20DB-000000)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 **An enterprise-grade autonomous AI research platform** that conducts deep, multi-source research and generates professional reports with built-in quality evaluation — powered by multi-agent systems and semantic memory.
 
@@ -28,24 +27,24 @@ In an era of information overload, NEXUS AI represents the future of knowledge w
 ```mermaid
 flowchart TD
     A[User Input] --> B[Search Intelligence Layer]
-    B --> C[Deep Web Reader]
+    B --> C[Deep Web Reader Layer]
     C --> D[Semantic Memory Layer]
     D --> E[Writer Chain]
     E --> F[Critic Chain]
-    F --> G[Final Report + Evaluation]
-    
-    subgraph "Intelligence Layer"
-    B
-    C
+    F --> G[Final Research Report + Evaluation]
+
+    subgraph "🧠 Intelligence Layer"
+        B
+        C
     end
-    
-    subgraph "Memory & Knowledge"
-    D
+
+    subgraph "📚 Knowledge Layer"
+        D
     end
-    
-    subgraph "Agent Layer"
-    E
-    F
+
+    subgraph "🤖 Agent Layer"
+        E
+        F
     end
 
 ### Core Pipeline Workflow
@@ -60,17 +59,17 @@ flowchart TD
    - Handles both static and JavaScript-rendered pages
 
 3. **Semantic Memory Layer**  
-   - Document chunking and embedding  
-   - Storage in ChromaDB vector database  
-   - Contextual retrieval using similarity search
+   - Document chunking and embedding using Sentence Transformers  
+   - Storage in **ChromaDB** vector database  
+   - Contextual retrieval using similarity search (RAG)
 
 4. **Writer Chain**  
    - LangChain-based LLM chain  
-   - Generates professional, structured research report
+   - Generates professional, structured research reports (Introduction, Key Findings, Technical Analysis, Conclusion, Sources)
 
 5. **Critic Chain**  
    - Independent evaluation agent  
-   - Detects hallucinations, logical gaps, and missing information  
+   - Detects hallucinations, logical gaps, unsupported claims, and completeness issues  
    - Provides scoring and improvement suggestions
 
 ---
@@ -101,7 +100,7 @@ flowchart TD
 | **Vector Database**     | ChromaDB                            | Semantic memory |
 | **Embeddings**          | Sentence Transformers               | High-quality vectors |
 | **Async Runtime**       | asyncio + aiohttp                   | Performance |
-| **UI/UX**              | Custom CSS + Responsive Design      | Enterprise feel |
+| **UI/UX**               | Custom CSS + Responsive Design      | Enterprise feel |
 
 ---
 
@@ -109,12 +108,12 @@ flowchart TD
 
 ```bash
 nexus-ai/
-├── agents.PY                 # LangChain agent chaiN
-├── tools.py                 # Core tools and utilities
-├── pipeline.py                # Main file
-├── app.py        # Main UI
+├── agents.py
+├── tools.py
+├── app.py                      # Main Streamlit UI
+├── pipeline.py                 # Main pipeline
 ├── requirements.txt
-├── .env
+├── .env.example
 └── README.md
 ```
 
@@ -126,37 +125,33 @@ nexus-ai/
 
 ```bash
 git clone https://github.com/AkarshVyas/Multi-agent-research-system.git
-cd nexus-ai
+cd Multi-agent-research-system
 ```
 
 ### 2. Create Virtual Environment
 
 ```bash
 python -m venv venv
-source venv/bin/activate    # Windows: venv\Scripts\activate
+source venv/bin/activate        # On Windows: venv\Scripts\activate
 ```
 
 ### 3. Install Dependencies
 
 ```bash
-pip install -r requirements.txt 
+pip install -r requirements.txt
 ```
 
-### 4. Environment Setup
-
-Copy the example environment file:
+### 4. Environment Variables
 
 ```bash
 cp .env.example .env
 ```
 
-### 5. API Keys Required
+### 5. Add API Keys
 
 ```env
-# .env file
 TAVILY_API_KEY=your_tavily_key_here
 MISTRAL_API_KEY=your_mistral_key_here
-# Optional: GROQ_API_KEY, OPENAI_API_KEY etc.
 ```
 
 ---
@@ -167,16 +162,16 @@ MISTRAL_API_KEY=your_mistral_key_here
 streamlit run app.py
 ```
 
-The application will launch at `http://localhost:8501`
+The application will be available at `http://localhost:8501`
 
 ---
 
-
 ## 📸 Screenshots
 
-![Hero-section](image-1.png)
-![Report](image.png)
+![Hero Section](image-1.png)
+![Research Report](image.png)
 
+*(Replace with actual screenshots)*
 
 ---
 
@@ -191,10 +186,10 @@ NEXUS uses a **multi-agent** design where specialized agents (Writer & Critic) c
 - Enables **long-term memory** across research sessions
 
 ### Retrieval Augmented Generation (RAG)
-Instead of relying solely on LLM parametric knowledge, NEXUS retrieves relevant, up-to-date context from its vector database before generation — dramatically reducing hallucinations.
+Retrieves relevant, up-to-date context from the vector database before generation, dramatically reducing hallucinations.
 
 ### Async Scraping Architecture
-Parallel asynchronous scraping using `asyncio` + `aiohttp` + `Playwright` ensures high speed and resilience when processing multiple sources.
+Parallel asynchronous scraping using `asyncio` + `aiohttp` + `Playwright` ensures speed and resilience.
 
 ---
 
@@ -215,14 +210,12 @@ Parallel asynchronous scraping using `asyncio` + `aiohttp` + `Playwright` ensure
 - Combines **web intelligence + academic research**
 - Features **self-reflection** through critic agent
 - Production-ready UI/UX with enterprise aesthetics
-- Scalable architecture ready for cloud deployment
 
 ### Resume-Worthy Highlights
 - Built a complete **multi-agent autonomous system**
 - Implemented **RAG** with vector databases
 - Designed **asynchronous scraping pipelines**
 - Created **self-evaluating AI** using critic chains
-- Production deployment-ready Streamlit application
 
 ---
 
@@ -239,31 +232,24 @@ Parallel asynchronous scraping using `asyncio` + `aiohttp` + `Playwright` ensure
 
 ## 🛣️ Future Roadmap
 
-- [ ] Multi-modal support (PDFs, images)
-- [ ] Agent memory persistence across sessions
+- [ ] Multi-modal support (PDFs, images, tables)
+- [ ] Persistent agent memory across sessions
 - [ ] WebSocket streaming responses
-- [ ] User feedback loop for continuous improvement
-- [ ] Multi-LLM routing (Mistral + Groq + Claude)
-- [ ] Team collaboration features
-- [ ] API endpoint for integration
+- [ ] Multi-LLM routing
+- [ ] API endpoints for integration
+- [ ] User feedback & fine-tuning loop
 
 ---
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-1. Fork the project
-2. Create your feature branch
-3. Commit your changes
-4. Push to the branch
-5. Open a Pull Request
+Contributions are welcome! Feel free to open issues or submit Pull Requests.
 
 ---
 
 ## 📜 License
 
-This project is licensed under the **MIT License** — see the [LICENSE](LICENSE) file for details.
+This project is licensed under the **MIT License**.
 
 ---
 
