@@ -1,4 +1,3 @@
-```markdown
 # NEXUS AI — Autonomous Multi-Agent Research Intelligence System
 
 ![NEXUS AI](https://img.shields.io/badge/NEXUS%20AI-Production%20Ready-FF5A1A?style=for-the-badge)
@@ -48,7 +47,6 @@ flowchart TD
     E
     F
     end
-```
 
 ### Core Pipeline Workflow
 
@@ -176,12 +174,9 @@ The application will launch at `http://localhost:8501`
 
 ## 📸 Screenshots
 
-![Hero Interface]
 ![Hero-section](image-1.png)
-![Research Report]
 ![Report](image.png)
 
-*(Add your actual screenshots here)*
 
 ---
 
@@ -286,4 +281,3 @@ This project is licensed under the **MIT License** — see the [LICENSE](LICENSE
 **NEXUS AI — Where Intelligence Meets Autonomy**
 
 </div>
-```
