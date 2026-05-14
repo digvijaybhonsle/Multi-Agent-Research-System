@@ -1,3 +1,4 @@
+```gitignore
 # Virtual Environment
 .venv/
 venv/
@@ -10,9 +11,6 @@ __pycache__/
 *.pyc
 *.pyo
 *.pyd
-
-# Streamlit
-.streamlit/
 
 # VS Code
 .vscode/
@@ -41,3 +39,4 @@ build/
 # SQLite
 *.sqlite3
 *.db
+```
