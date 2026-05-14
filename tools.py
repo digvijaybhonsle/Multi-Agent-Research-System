@@ -16,19 +16,23 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 
 # =========================================================
-# CHROMADB SETUP
+# GLOBAL VARIABLES (LAZY LOADING)
 # =========================================================
 
-chroma_client = chromadb.PersistentClient(
-    path="/tmp/chroma_db"
-)
-
 embedding_model = None
+collection = None
+
+
+# =========================================================
+# EMBEDDING MODEL (LAZY LOAD)
+# =========================================================
 
 def get_embedding_model():
+
     global embedding_model
 
     if embedding_model is None:
+
         from sentence_transformers import SentenceTransformer
 
         embedding_model = SentenceTransformer(
@@ -38,9 +42,24 @@ def get_embedding_model():
     return embedding_model
 
 
-collection = chroma_client.get_or_create_collection(
-    name="research_reports"
-)
+# =========================================================
+# CHROMADB COLLECTION (LAZY LOAD)
+# =========================================================
+
+def get_collection():
+
+    global collection
+
+    if collection is None:
+
+        chroma_client = chromadb.Client()
+
+        collection = chroma_client.get_or_create_collection(
+            name="research_reports"
+        )
+
+    return collection
+
 
 # =========================================================
 # TEXT SPLITTER
@@ -77,7 +96,7 @@ def search_web(query: str) -> str:
         response = client.search(
             query=query,
             search_depth="basic",
-            max_results=5
+            max_results=3
         )
 
         out = []
@@ -126,7 +145,7 @@ async def fetch_page(session, url):
 
         async with session.get(
             url,
-            timeout=10,
+            timeout=aiohttp.ClientTimeout(total=10),
             headers=headers
         ) as response:
 
@@ -154,7 +173,7 @@ async def fetch_page(session, url):
 
             return {
                 "url": url,
-                "content": text[:5000]
+                "content": text[:3000]
             }
 
     except Exception as e:
@@ -173,12 +192,27 @@ async def scrape_urls_async(urls):
             fetch_page(session, url)
             for url in urls
         ]
+
         results = await asyncio.gather(
             *tasks,
             return_exceptions=True
         )
 
-        return results
+        cleaned_results = []
+
+        for result in results:
+
+            if isinstance(result, Exception):
+
+                cleaned_results.append({
+                    "url": "Unknown",
+                    "content": f"Scraping Exception: {str(result)}"
+                })
+
+            else:
+                cleaned_results.append(result)
+
+        return cleaned_results
 
 
 # =========================================================
@@ -226,23 +260,22 @@ def store_document(
 
     try:
 
-        # Split text into chunks
         chunks = splitter.split_text(text)
 
-        # Generate embeddings
+        if not chunks:
+            return "No text chunks generated."
+
         model = get_embedding_model()
 
         embeddings = model.encode(
             chunks
         ).tolist()
 
-        # Unique IDs
         ids = [
             str(uuid.uuid4())
             for _ in range(len(chunks))
         ]
 
-        # Metadata
         metadatas = [
             {
                 "topic": topic,
@@ -251,8 +284,7 @@ def store_document(
             for i in range(len(chunks))
         ]
 
-        # Store in ChromaDB
-        collection.add(
+        get_collection().add(
             documents=chunks,
             embeddings=embeddings,
             metadatas=metadatas,
@@ -287,7 +319,7 @@ def retrieve_documents(query: str) -> str:
             [query]
         ).tolist()
 
-        results = collection.query(
+        results = get_collection().query(
             query_embeddings=query_embedding,
             n_results=5,
             include=[
@@ -297,8 +329,14 @@ def retrieve_documents(query: str) -> str:
             ]
         )
 
+        if not results["documents"]:
+            return "No documents found."
+
         docs = results["documents"][0]
         metas = results["metadatas"][0]
+
+        if not docs:
+            return "No relevant documents found."
 
         formatted = []
 
