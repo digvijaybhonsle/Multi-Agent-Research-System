@@ -124,7 +124,7 @@ nexus-ai/
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/AkarshVyas/Multi-agent-research-system.git
+git clone https://github.com/digvijaybhonsle/Multi-Agent-Research-System.git
 cd Multi-agent-research-system
 ```
 
