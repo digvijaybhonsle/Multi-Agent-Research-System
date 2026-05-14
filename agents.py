@@ -2,19 +2,26 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from langchain_mistralai import ChatMistralAI
-
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 
 
 # =========================================================
-# LLM
+# LLM CONFIGURATION
 # =========================================================
 
-llm = ChatMistralAI(
+llm_writer = ChatMistralAI(
+    model="mistral-small-2506",      # or "mistral-large-latest" if budget allows
+    temperature=0.2,                   # Lower for factual writing
+    max_tokens=4096,
+    top_p=0.95,
+)
+
+llm_critic = ChatMistralAI(
     model="mistral-small-2506",
-    temperature=0.3,
-    max_tokens=4000
+    temperature=0.1,                   # Even lower for critical evaluation
+    max_tokens=2048,
+    top_p=0.9,
 )
 
 
@@ -23,56 +30,46 @@ llm = ChatMistralAI(
 # =========================================================
 
 writer_prompt = ChatPromptTemplate.from_messages([
-
     (
         "system",
-        """
-You are an elite AI research analyst and technical writer.
+        """You are an elite technical research analyst and professional writer.
+You produce high-quality, well-structured, evidence-based research reports.
 
-Your responsibilities:
-- Generate factual and evidence-based reports
-- Maintain professional structure
-- Use only provided context
-- Avoid hallucinations
-- Write in a concise but highly informative style
-
-Rules:
-- Never invent facts
-- Never create fake citations
-- Mention uncertainty if information is insufficient
-- Keep technical explanations accurate
-"""
+Core Rules:
+- ONLY use the provided research context. Do not hallucinate facts.
+- Be precise, objective, and analytical.
+- Use clear professional language.
+- Cite sources implicitly where possible.
+- Maintain logical flow and depth.
+- If information is missing or unclear, explicitly state it."""
     ),
-
     (
         "human",
-        """
-Generate a detailed research report.
+        """Write a comprehensive research report on the following topic.
 
-TOPIC:
-{topic}
+TOPIC: {topic}
 
 RESEARCH CONTEXT:
 {research}
 
-Required Structure:
+Structure the report exactly as follows:
+
 1. Executive Summary
 2. Introduction
 3. Key Findings
 4. Technical Analysis
-5. Current Challenges
-6. Future Scope
+5. Current Challenges & Limitations
+6. Future Outlook
 7. Conclusion
-8. Sources
+8. Sources & References
 
-Write professionally and in depth.
-"""
+Make it detailed, insightful, and professionally written."""
     ),
 ])
 
 writer_chain = (
     writer_prompt
-    | llm
+    | llm_writer
     | StrOutputParser()
 )
 
@@ -82,60 +79,52 @@ writer_chain = (
 # =========================================================
 
 critic_prompt = ChatPromptTemplate.from_messages([
-
     (
         "system",
-        """
-You are a senior AI research reviewer.
+        """You are a rigorous, highly critical senior research reviewer and quality assurance expert.
 
-Your job:
-- Evaluate factual consistency
-- Detect hallucinations
-- Analyze logical structure
-- Review clarity and completeness
-- Suggest improvements
-
-Be highly critical and professional.
-"""
+Your goal is to catch inaccuracies, hallucinations, logical gaps, and structural weaknesses.
+Be strict but fair and constructive."""
     ),
-
     (
         "human",
-        """
-Critically review the following report.
+        """Critically evaluate the following research report.
 
 REPORT:
 {report}
 
-Respond EXACTLY in this structure:
+Provide your review in this **exact** format:
 
 # Overall Score
 X/10
 
 # Strengths
-- Point 1
-- Point 2
+- Bullet point 1
+- Bullet point 2
 
 # Weaknesses
-- Point 1
-- Point 2
+- Bullet point 1
+- Bullet point 2
 
-# Hallucination Risks
+# Hallucination & Factual Risks
 - Risk 1
 - Risk 2
 
-# Improvement Suggestions
-- Suggestion 1
-- Suggestion 2
+# Logical & Structural Issues
+- Issue 1
+- Issue 2
+
+# Improvement Recommendations
+- Recommendation 1
+- Recommendation 2
 
 # Final Verdict
-Short professional verdict.
-"""
+One sentence professional verdict (e.g., "Strong report with minor gaps" or "Requires significant revision")."""
     ),
 ])
 
 critic_chain = (
     critic_prompt
-    | llm
+    | llm_critic
     | StrOutputParser()
 )

@@ -6,48 +6,49 @@ from agents import (
 from tools import (
     search_web,
     search_arxiv,
+    scrape_urls_async,
     store_document,
-    retrieve_documents,
-    scrape_urls_async
+    retrieve_documents
 )
 
 import re
 import asyncio
+import time
 
 
 # =========================================================
-# MAIN PIPELINE
+# MAIN RESEARCH PIPELINE
 # =========================================================
 
 def run_research_pipeline(topic: str) -> dict:
-
+    """
+    Full autonomous research pipeline.
+    Returns complete state dictionary.
+    """
     state = {}
+    start_time = time.time()
+
+    print("\n" + "="*80)
+    print(f"🚀 STARTING RESEARCH: {topic}")
+    print("="*80)
 
     # =====================================================
-    # STEP 1 — SEARCH
+    # STEP 1 — SEARCH INTELLIGENCE
     # =====================================================
-
-    print("\n" + "=" * 60)
-    print("STEP 1 — SEARCHING WEB + ARXIV...")
-    print("=" * 60)
+    step_start = time.time()
+    print("\n🔍 STEP 1 — Search Intelligence...")
 
     try:
-
         web_results = search_web.invoke(topic)
-
     except Exception as e:
-
         web_results = f"Web Search Error: {str(e)}"
 
     try:
-
         arxiv_results = search_arxiv.invoke(topic)
-
     except Exception as e:
-
         arxiv_results = f"Arxiv Error: {str(e)}"
 
-    combined_search = f"""
+    state["search_results"] = f"""
 WEB RESULTS:
 {web_results}
 
@@ -55,99 +56,50 @@ ACADEMIC RESULTS:
 {arxiv_results}
 """
 
-    state["search_results"] = combined_search
-
-    print("\nSEARCH RESULTS:\n")
-    print(combined_search[:2000])
-
-
+    print(f"   ✅ Search completed in {time.time() - step_start:.2f}s")
 
     # =====================================================
-    # STEP 2 — EXTRACT URLS
+    # STEP 2 — URL EXTRACTION
     # =====================================================
+    step_start = time.time()
+    print("\n🔗 STEP 2 — Extracting URLs...")
 
-    print("\n" + "=" * 60)
-    print("STEP 2 — EXTRACTING URLS...")
-    print("=" * 60)
-
-    urls = re.findall(
-        r"https?://[^\s]+",
-        combined_search
-    )
-
-    # Remove duplicates
-    urls = list(set(urls))
-
-    # Limit URLs for stability
-    urls = urls[:3]
+    urls = re.findall(r"https?://[^\s]+", state["search_results"])
+    urls = list(set(urls))[:5]          # Limit for stability & cost
 
     state["urls"] = urls
-
-    print("\nEXTRACTED URLS:\n")
-
-    for url in urls:
-        print(url)
-
-
+    print(f"   Found {len(urls)} unique URLs")
+    print(f"   ✅ URL extraction completed in {time.time() - step_start:.2f}s")
 
     # =====================================================
-    # STEP 3 — SCRAPE URLS
+    # STEP 3 — DEEP WEB SCRAPING
     # =====================================================
-
-    print("\n" + "=" * 60)
-    print("STEP 3 — SCRAPING URLS...")
-    print("=" * 60)
+    step_start = time.time()
+    print("\n📄 STEP 3 — Scraping Web Content...")
 
     try:
-
-        scraped_results = asyncio.run(
-            scrape_urls_async(urls)
-        )
-
+        scraped_results = asyncio.run(scrape_urls_async(urls))
     except Exception as e:
+        print(f"   Scraping failed: {e}")
+        scraped_results = [{"url": "N/A", "content": f"Scraping failed: {str(e)}"}]
 
-        scraped_results = [
-            {
-                "url": "N/A",
-                "content": f"Scraping Failed: {str(e)}"
-            }
-        ]
+    # Format scraped content
+    formatted_scraped = [
+        f"URL: {item.get('url', 'N/A')}\nCONTENT:\n{item.get('content', '')[:4000]}"
+        for item in scraped_results
+    ]
 
-    formatted_scraped_content = []
-
-    for item in scraped_results:
-
-        formatted_scraped_content.append(
-            f"""
-URL:
-{item['url']}
-
-CONTENT:
-{item['content']}
-"""
-        )
-
-    state["scraped_content"] = (
-        "\n\n====================\n\n"
-        .join(formatted_scraped_content)
-    )
-
-    print("\nSCRAPED CONTENT:\n")
-    print(state["scraped_content"][:3000])
-
-
+    state["scraped_content"] = "\n\n" + "="*60 + "\n\n".join(formatted_scraped)
+    print(f"   ✅ Scraping completed in {time.time() - step_start:.2f}s")
 
     # =====================================================
-    # STEP 4 — STORE IN CHROMADB
+    # STEP 4 — STORE IN SEMANTIC MEMORY
     # =====================================================
+    step_start = time.time()
+    print("\n🧠 STEP 4 — Storing in Vector Memory...")
 
-    print("\n" + "=" * 60)
-    print("STEP 4 — STORING IN VECTOR MEMORY...")
-    print("=" * 60)
-
-    combined_memory = f"""
-TOPIC:
-{topic}
+    memory_text = f"""
+TOPIC: {topic}
 
 SEARCH RESULTS:
 {state['search_results']}
@@ -157,121 +109,82 @@ SCRAPED CONTENT:
 """
 
     try:
-
-        memory_result = store_document.invoke({
-            "text": combined_memory,
+        memory_status = store_document.invoke({
+            "text": memory_text,
             "topic": topic
         })
-
     except Exception as e:
+        memory_status = f"Memory Storage Error: {str(e)}"
 
-        memory_result = (
-            f"Memory Storage Error: {str(e)}"
-        )
-
-    state["memory_status"] = memory_result
-
-    print("\nMEMORY STATUS:\n")
-    print(memory_result)
-
-
+    state["memory_status"] = memory_status
+    print(f"   ✅ Memory storage completed in {time.time() - step_start:.2f}s")
 
     # =====================================================
     # STEP 5 — RETRIEVE CONTEXT
     # =====================================================
-
-    print("\n" + "=" * 60)
-    print("STEP 5 — RETRIEVING CONTEXT...")
-    print("=" * 60)
+    step_start = time.time()
+    print("\n🔎 STEP 5 — Retrieving Relevant Context...")
 
     try:
-
-        retrieved_context = retrieve_documents.invoke({
-            "query": topic
-        })
-
+        retrieved = retrieve_documents.invoke({"query": topic})
     except Exception as e:
+        retrieved = f"Retrieval Error: {str(e)}"
 
-        retrieved_context = (
-            f"Retrieval Error: {str(e)}"
-        )
-
-    state["retrieved_context"] = retrieved_context
-
-    print("\nRETRIEVED CONTEXT:\n")
-    print(retrieved_context[:3000])
-
-
+    state["retrieved_context"] = retrieved
+    print(f"   ✅ Context retrieval completed in {time.time() - step_start:.2f}s")
 
     # =====================================================
     # STEP 6 — WRITER CHAIN
     # =====================================================
-
-    print("\n" + "=" * 60)
-    print("STEP 6 — GENERATING REPORT...")
-    print("=" * 60)
+    step_start = time.time()
+    print("\n✍️  STEP 6 — Generating Research Report...")
 
     try:
-
         report = writer_chain.invoke({
             "topic": topic,
-            "research": retrieved_context
+            "research": retrieved
         })
-
     except Exception as e:
-
         report = f"Writer Chain Error: {str(e)}"
 
     state["report"] = report
-
-    print("\nFINAL REPORT:\n")
-    print(report[:4000])
-
-
+    print(f"   ✅ Report generation completed in {time.time() - step_start:.2f}s")
 
     # =====================================================
     # STEP 7 — CRITIC CHAIN
     # =====================================================
-
-    print("\n" + "=" * 60)
-    print("STEP 7 — REVIEWING REPORT...")
-    print("=" * 60)
+    step_start = time.time()
+    print("\n🧐 STEP 7 — Critic Review...")
 
     try:
-
-        feedback = critic_chain.invoke({
-            "report": report
-        })
-
+        feedback = critic_chain.invoke({"report": report})
     except Exception as e:
-
         feedback = f"Critic Chain Error: {str(e)}"
 
     state["feedback"] = feedback
-
-    print("\nCRITIC FEEDBACK:\n")
-    print(feedback)
-
-
+    print(f"   ✅ Critic review completed in {time.time() - step_start:.2f}s")
 
     # =====================================================
-    # FINAL OUTPUT
+    # FINAL SUMMARY
     # =====================================================
+    total_time = time.time() - start_time
+    print("\n" + "="*80)
+    print(f"🎉 RESEARCH PIPELINE COMPLETED in {total_time:.2f} seconds")
+    print("="*80)
 
     return state
 
 
-
 # =========================================================
-# MAIN
+# CLI ENTRY POINT
 # =========================================================
 
 if __name__ == "__main__":
+    print("NEXUS AI — Autonomous Research System")
+    topic = input("\nEnter research topic: ").strip()
 
-    topic = input(
-        "\nEnter a research topic: "
-    )
-
-    final_state = run_research_pipeline(
-        topic
-    )
+    if not topic:
+        print("❌ Topic cannot be empty.")
+    else:
+        final_state = run_research_pipeline(topic)
+        print("\n✅ Final Report generated successfully!")
